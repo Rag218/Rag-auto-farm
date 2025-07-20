@@ -7,6 +7,7 @@ plr.CharacterAdded:Connect(function(char)
     character = char
     humPart = char:WaitForChild("HumanoidRootPart")
 end)
+
 local map
 game.Workspace.DescendantAdded:Connect(function(m)
     if m:IsA("Model") and m:GetAttribute("MapID") then
@@ -18,78 +19,85 @@ game.Workspace.DescendantRemoving:Connect(function(m)
         map = nil
     end
 end)
+
 local tweenService = game:GetService("TweenService")
+
+local function getClosestCoin()
+    local container = map and map:FindFirstChild("CoinContainer")
+    if not container then return nil end
+
+    local closestCoin = nil
+    local closestDistance = math.huge
+
+    for _, coin in ipairs(container:GetChildren()) do
+        if coin:IsA("Part") and coin.Name == "Coin_Server" and coin:GetAttribute("CoinID") == "BeachBall" then
+            local cv = coin:FindFirstChild("CoinVisual")
+            if cv and cv.Transparency ~= 1 then
+                local dist = (humPart.Position - coin.Position).Magnitude
+                if dist < closestDistance then
+                    closestDistance = dist
+                    closestCoin = coin
+                end
+            end
+        end
+    end
+
+    return closestCoin
+end
+
 local function teleport(obj)
     if obj and obj:IsDescendantOf(workspace) and humPart and humPart:IsDescendantOf(workspace) then
         local distance = (humPart.Position - obj.Position).Magnitude
-        local time = math.clamp(distance / 20, 0.2, 5)
+        local time = math.clamp(distance / 20, 0.2, 1.5)
 
         local tween = tweenService:Create(humPart, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = obj.CFrame * CFrame.new(0, -4, 0)})
         tween:Play()
-        tween.Completed:Wait(.6)
+        tween.Completed:Wait()
 
-        local touchInterest = obj:FindFirstChild("TouchInterest")
-        if touchInterest then
-            firetouchinterest(humPart, obj, 0)
-            firetouchinterest(humPart, obj, 1)
-        end
+        firetouchinterest(humPart, obj, 0)
+        firetouchinterest(humPart, obj, 1)
     end
 end
+
 getgenv().farm = false
-w:Toggle("BeachBall Farm", false, function(bool)
-    getgenv().farm = bool
-    if not getgenv().farm then
-        if workspace.Gravity ~= 196.2 then workspace.Gravity = 196.2 end
+
+w:Toggle("Auto Farm (BeachBall)", false, function(state)
+    getgenv().farm = state
+    if not state then
+        workspace.Gravity = 196.2
         return
     end
+
+    workspace.Gravity = 0
+
     while getgenv().farm do
-        local container = map and map:FindFirstChild("CoinContainer")
-        if (not map) or (not map.Parent) then
-            for _,m in ipairs(game.Workspace:GetDescendants()) do
-                if m:IsA("Model") and m:GetAttribute("MapID") then
-                    map = m
-                    break
-                end
+        if not humPart or not humPart.Parent then
+            humPart = character and character:FindFirstChild("HumanoidRootPart")
+            if not humPart then task.wait() continue end
+        end
+
+        -- Noclip
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
             end
         end
-        if map then
-            if container then
-                if workspace.Gravity ~= 0 then workspace.Gravity = 0 end
 
-                local anyCoin = false
+        local coin = getClosestCoin()
 
-                for _,coin in ipairs(container:GetChildren()) do
-                    if not getgenv().farm then break end
-                    if coin:IsA("Part") and coin.Name=="Coin_Server" and coin:GetAttribute("CoinID")=="BeachBall" then
-                        local cv = coin:FindFirstChild("CoinVisual")
-                        if cv and cv.Transparency~=1 then
-                            anyCoin = true
-                            if not humPart or not humPart.Parent then
-                                humPart = character and character:FindFirstChild("HumanoidRootPart")
-                                if not humPart then break end
-                            end
-                            for _,p in pairs(character:GetChildren()) do
-                                if p:IsA("BasePart") and p.CanCollide then p.CanCollide=false end
-                            end
-                            teleport(coin)
-                        end
-                    end
-                end
-
-                if not anyCoin then
-                    if workspace.Gravity ~= 196.2 then workspace.Gravity = 196.2 end
-                    humPart.CFrame = CFrame.new(93, 140, 61)
-                end
-            end
+        if coin then
+            teleport(coin)
         else
-            if workspace.Gravity ~= 196.2 then workspace.Gravity = 196.2 end
-            humPart.CFrame = CFrame.new(93, 140, 61)
+            humPart.CFrame = CFrame.new(93, 140, 61) -- espera por coins
         end
-        task.wait(1)
+
+        task.wait(0.2)
     end
 end)
+
+-- Anti-AFK
 local GC = getconnections or get_signal_cons
-w:Button("Anti AFK", function()
+w:Button("Anti afk", function()
     if GC then
         for _,v in pairs(GC(plr.Idled)) do
             if v.Disable then v:Disable() elseif v.Disconnect then v:Disconnect() end
@@ -102,4 +110,5 @@ w:Button("Anti AFK", function()
         end)
     end
 end)
+
 w:Label("BY: RAGKK14", Color3.fromRGB(127, 143, 166))
